@@ -46,8 +46,8 @@ canvas {
 } 
 
 .label-tick{
-    font-size: medium;
-    font-family: 'Apple Chancery', sans-serif;
+    font-size: small;
+/*    font-family: 'Apple Chancery', sans-serif;*/
     color: #D3D3D3;
 } 
 
@@ -69,7 +69,7 @@ console.log(dataThree);
 // BASIC SETUP
 // ==================================================================================
 const camera = new PerspectiveCamera( 30, window.innerWidth / window.innerHeight, .01, 10000 );
-camera.position.set( 0, .3, .6 );
+camera.position.set( 1, 1, 3 );
 const scene = new Scene();
 scene.background = new Color("rgb(24, 22, 21)");
 
@@ -239,13 +239,19 @@ function createAxisLabel( text, x, y, z, ox = 0, oy = 0, rnz = 0) {
     scene.add( label );
 }
 
-// function f2ct( f ) {return Number.parseFloat(f).toExponential(2);}
+function f2ct( f ) {return Number.parseFloat(f).toExponential(2);}
 // createTickLabel(f2ct(dataThree.limits.midX),0,-.55,-.6,0,0);
-// createTickLabel(f2ct(dataThree.limits.midX+dataThree.limits.max),.5,-.55,-.6,0,0);
-// createTickLabel(f2ct(dataThree.limits.midX-dataThree.limits.max),-.5,-.55,-.6,0,0);
+createTickLabel(f2ct(dataThree.limits.midX+dataThree.limits.max),.45,-.55,.6);
+createTickLabel(f2ct(dataThree.limits.midX-dataThree.limits.max),-.55,-.55,.6);
 // createTickLabel(f2ct(dataThree.limits.midZ),.6,-.55,0,0,0);
-// createTickLabel(f2ct(dataThree.limits.midZ+dataThree.limits.max),.6,-.55,.5,0,0);
-// createTickLabel(f2ct(dataThree.limits.midZ-dataThree.limits.max),.6,-.55,-.5,0,0);
+createTickLabel(f2ct(dataThree.limits.midZ+dataThree.limits.max),.6,-.55,.5);
+createTickLabel(f2ct(dataThree.limits.midZ-dataThree.limits.max),.6,-.55,-.5);
+
+
+createTickLabel(f2ct(dataThree.limits.midY+dataThree.limits.max),-.625,.525,.625);
+createTickLabel(f2ct(dataThree.limits.midY-dataThree.limits.max),-.625,-.475,.625);
+
+
 // createTickLabel(f2ct(dataThree.limits.midY),.55,0,.55,0,0);
 createTitleLabel(dataThree.title,0,.56,0,.5,.5);
 createAxisLabel("x",0,-.55,.575,0,0);
