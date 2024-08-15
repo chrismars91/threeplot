@@ -47,7 +47,6 @@ canvas {
 
 .label-tick{
     font-size: small;
-/*    font-family: 'Apple Chancery', sans-serif;*/
     color: #D3D3D3;
 } 
 
@@ -59,12 +58,13 @@ canvas {
     <script src="{{url_for('static',filename='src/OrbitControls.js')}}"></script>
     <script src="{{url_for('static',filename='src/Stats.js')}}"></script>
     <script src="{{url_for('static',filename='src/CSS2DRenderer.js')}}"></script>
+    <script src="{{url_for('static',filename='src/colormaps255.js')}}"></script>
 	<script type="module">
 
 // BASIC API
 // ==================================================================================
-const dataThree = {{ dataForThree|safe }};
-console.log(dataThree);
+const data3 = {{ dataForThree|safe }};
+console.log(data3);
 
 // BASIC SETUP
 // ==================================================================================
@@ -89,14 +89,12 @@ scene.add( light );
 class VerticesGeometry extends BufferGeometry {
     constructor( data ){
         super();
-        const vertices = new Float32Array(dataThree.length*3);
-        for(var i = 0;i<dataThree.length;i+=1)
+        const verts = new Float32Array(data3.length*3);
+        for(var i = 0;i<data3.length;i+=1)
         {
-            vertices[i*3] = dataThree[i][0];
-            vertices[i*3+1] = dataThree[i][1];
-            vertices[i*3+2] = dataThree[i][2];
+            verts[i*3] = data3[i][0];verts[i*3+1] = data3[i][1];verts[i*3+2] = data3[i][2];
         }
-        this.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
+        this.setAttribute( 'position', new Float32BufferAttribute( verts, 3 ) );
         this.computeVertexNormals();
     }
 }
@@ -108,6 +106,7 @@ class SurfaceGeometry extends BufferGeometry {
         super();
         const indices = [];
         const vertices = [];
+        const colors = [];
         const uvs = [];
         const stacks = N1-1;
         const slices = N2-1;
@@ -143,6 +142,52 @@ class SurfaceGeometry extends BufferGeometry {
     }
 }
 
+class SurfaceGeometryCmap extends BufferGeometry {
+    constructor(  data, N1, N2, scale, mx, my, mz, cMapMin, cMapNorm ){
+        super();
+        const indices = [];
+        const vertices = [];
+        const colors = [];
+        const uvs = [];
+        const stacks = N1-1;
+        const slices = N2-1;
+        const sliceCount = slices + 1;
+        var IDX = 0;
+        for ( let i = 0; i <= stacks; i ++ ) {
+            const v = i / stacks;
+            for ( let j = 0; j <= slices; j ++ ) {
+                const u = j / slices;
+                const y = data[IDX][1];
+                vertices.push( 
+                    data[IDX][0]/scale - mx,
+                    data[IDX][1]/scale - my,
+                    data[IDX][2]/scale - mz
+                );
+                IDX += 1;
+                uvs.push( u, v );
+                const c = jetcmap[Math.floor(255*(y - cMapMin)/cMapNorm)];
+                // console.log(Math.floor((y - cMapMin)/cMapNorm))
+                colors.push(c[0],c[1],c[2]);
+            }
+        }
+        for ( let i = 0; i < stacks; i ++ ) {
+            for ( let j = 0; j < slices; j ++ ) {
+                const a = i * sliceCount + j;
+                const b = i * sliceCount + j + 1;
+                const c = ( i + 1 ) * sliceCount + j + 1;
+                const d = ( i + 1 ) * sliceCount + j;
+                indices.push( a, b, d );
+                indices.push( b, c, d );
+            }
+        }
+        this.setIndex( indices );
+        this.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
+        this.setAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) );
+        this.setAttribute( 'color', new Float32BufferAttribute( colors, 3 ) );
+        this.computeVertexNormals();
+    }
+}
+
 // APPLY DATA 2 3D GRAPHICS
 // ==================================================================================
 
@@ -151,36 +196,49 @@ const rgbToHex = (r, g, b) => '#' + [Math.floor(r*255), Math.floor(g*255), Math.
     return hex.length === 1 ? '0' + hex : hex
 }).join('');
 
-for (var j = 0; j < dataThree.data.length; j += 1)
+for (var j = 0; j < data3.data.length; j += 1)
 {
-    const rgb = dataThree.data[j].rgb;
-    const geometry = new SurfaceGeometry( 
-        dataThree.data[j].xyz, 
-        dataThree.data[j].Nx, 
-        dataThree.data[j].Ny,
-        dataThree.limits.max,
-        dataThree.limits.midX,
-        dataThree.limits.midY,
-        dataThree.limits.midZ);
-    const material = new MeshPhongMaterial( {
-        color: rgbToHex(rgb[0],rgb[1],rgb[2]), 
-        side: DoubleSide,
-        transparent: true,
-        opacity: .5
-        // wireframe:true
-    } );
-    const material2 = new MeshBasicMaterial( {
-        color: rgbToHex(rgb[0],rgb[1],rgb[2]), 
-        // color: 0xFFFFFF, 
-        side: DoubleSide,
-        // transparent: true,
-        // opacity: .5
-        wireframe:true
-    } );
-    const plane = new Mesh( geometry, material );
-    scene.add( plane );
-    const wirePlane = new Mesh( geometry, material2 );
-    scene.add( wirePlane );
+    // probably not the best way to apply the cmap
+    if (data3.applyCmaps[j])
+        {
+            const geometry = new SurfaceGeometryCmap( 
+                data3.data[j].xyz, data3.data[j].Nx, data3.data[j].Ny,
+                data3.limits.max,
+                data3.limits.midX,
+                data3.limits.midY,
+                data3.limits.midZ,
+                data3.colorMapYLims.minY[j],
+                data3.colorMapYLims.normY[j]);
+            const material = new MeshPhongMaterial( {
+                color:0xFFFFFF,side:DoubleSide,transparent:true,
+                opacity:.5,vertexColors:true});
+
+            const material2 = new MeshBasicMaterial({
+                color:0xFFFFFF,side:DoubleSide,wireframe:true});
+            const plane = new Mesh( geometry, material );
+            scene.add( plane );
+            const wirePlane = new Mesh( geometry, material2 );
+            scene.add( wirePlane );
+        }
+    else
+    {
+        const rgb = data3.data[j].rgb;
+        const geometry = new SurfaceGeometry( 
+            data3.data[j].xyz, data3.data[j].Nx, data3.data[j].Ny,
+            data3.limits.max,
+            data3.limits.midX,
+            data3.limits.midY,
+            data3.limits.midZ,);
+        const material = new MeshPhongMaterial( {
+            color:rgbToHex(rgb[0],rgb[1],rgb[2]), 
+            side:DoubleSide,transparent:true,opacity:.5});
+        const material2 = new MeshBasicMaterial( {
+            color: rgbToHex(rgb[0],rgb[1],rgb[2]),side:DoubleSide,wireframe:true});
+        const plane = new Mesh( geometry, material );
+        scene.add( plane );
+        const wirePlane = new Mesh( geometry, material2 );
+        scene.add( wirePlane );
+    }
     // plane.renderOrder = j;
 }
 
@@ -240,20 +298,17 @@ function createAxisLabel( text, x, y, z, ox = 0, oy = 0, rnz = 0) {
 }
 
 function f2ct( f ) {return Number.parseFloat(f).toExponential(2);}
-// createTickLabel(f2ct(dataThree.limits.midX),0,-.55,-.6,0,0);
-createTickLabel(f2ct(dataThree.limits.midX+dataThree.limits.max),.45,-.55,.6);
-createTickLabel(f2ct(dataThree.limits.midX-dataThree.limits.max),-.55,-.55,.6);
-// createTickLabel(f2ct(dataThree.limits.midZ),.6,-.55,0,0,0);
-createTickLabel(f2ct(dataThree.limits.midZ+dataThree.limits.max),.6,-.55,.5);
-createTickLabel(f2ct(dataThree.limits.midZ-dataThree.limits.max),.6,-.55,-.5);
+//x
+createTickLabel(f2ct(data3.limits.midX+data3.limits.max),.45,-.55,.6);
+createTickLabel(f2ct(data3.limits.midX-data3.limits.max),-.55,-.55,.6);
+//z
+createTickLabel(f2ct(data3.limits.midZ+data3.limits.max),.6,-.55,.5);
+createTickLabel(f2ct(data3.limits.midZ-data3.limits.max),.6,-.55,-.5);
+//y
+createTickLabel(f2ct(data3.limits.midY+data3.limits.max),-.625,.525,.625);
+createTickLabel(f2ct(data3.limits.midY-data3.limits.max),-.625,-.475,.625);
 
-
-createTickLabel(f2ct(dataThree.limits.midY+dataThree.limits.max),-.625,.525,.625);
-createTickLabel(f2ct(dataThree.limits.midY-dataThree.limits.max),-.625,-.475,.625);
-
-
-// createTickLabel(f2ct(dataThree.limits.midY),.55,0,.55,0,0);
-createTitleLabel(dataThree.title,0,.56,0,.5,.5);
+createTitleLabel(data3.title,0,.56,0,.5,.5);
 createAxisLabel("x",0,-.55,.575,0,0);
 createAxisLabel("z",.575,-.55,  0,0,0);
 createAxisLabel("f(x,z)",-.55,0,.6,.5,.5,-90);
@@ -395,14 +450,14 @@ function onWindowResize() {
 
 // LIGHT THEME
 // ==================================================================================
-if (dataThree.theme === "light_theme")
+if (data3.theme === "light_theme")
 {
     scene.background = new Color( 0xf0f0f0 );
     // hoverDiv.style.color = 'black';
-    // const allTickDivs = document.getElementsByClassName('label-tick');
+    const allTickDivs = document.getElementsByClassName('label-tick');
     const titleDiv = document.getElementsByClassName('label-title')[0];
     const allAxisDivs = document.getElementsByClassName('label-axis');
-    // for(var i=0;i<=allTickDivs.length-1;i+=1){allTickDivs[i].style.color = 'black';}
+    for(var i=0;i<=allTickDivs.length-1;i+=1){allTickDivs[i].style.color = 'black';}
     for(var i=0;i<=allAxisDivs.length-1;i+=1){allAxisDivs[i].style.color = 'black';}
     titleDiv.style.color = 'black';
     boxframe.material.color = new Color( 0x000000 );

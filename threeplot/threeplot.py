@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+
 def xyForThree(x, y, idx):
     return {"x": x.tolist(), "y": y.tolist(), "N": len(y), "rgb": getHexColorsFromIdx(idx)}
 
@@ -60,11 +61,19 @@ def setUpForSurfaceThree(data):
     maxz = []
     minz = []
     dataxy = []
+    normYs = []
+    minYs = []
     for i in range(0, len(data), 3):
         maxx.append(data[i].max())
         minx.append(data[i].min())
         maxy.append(data[i + 1].max())
         miny.append(data[i + 1].min())
+        # maxYs.append(data[i + 1].max())
+        # minYs.append(data[i + 1].min())
+        _normY = data[i + 1].max() - data[i + 1].min()
+        _minY = data[i + 1].min()
+        normYs.append(_normY)
+        minYs.append(_minY)
         maxz.append(data[i + 2].max())
         minz.append(data[i + 2].min())
         dataxy.append(xyzSurfaceForThree(data[i], data[i + 1], data[i + 2], i // 3))
@@ -81,8 +90,9 @@ def setUpForSurfaceThree(data):
     return {"limits": {"max": mx,
                        "midX": midX,
                        "midY": midY,
-                       "midZ": midZ},
-            "data": dataxy}
+                       "midZ": midZ, },
+            "data": dataxy,
+            "colorMapYLims": {"normY": normYs, "minY": minYs}}
 
 
 def plot(data: list, title="", theme="dark_theme"):
@@ -111,16 +121,21 @@ def plot(data: list, title="", theme="dark_theme"):
     app.run()
 
 
-def plot3D(data: list, title="", theme="dark_theme"):
+def plot3D(data: list, title="", theme="dark_theme", applyCmaps=[]):
     if theme not in ["dark_theme", "light_theme"]:
         print("theme needs to be `dark_theme` or `light_theme`")
         return
+
+    if not applyCmaps:
+        for i in range(len(data)//3):
+            applyCmaps.append(False)
 
     app = Flask(__name__)
 
     dataForThree = setUpForSurfaceThree(data)
     dataForThree["title"] = title
     dataForThree["theme"] = theme
+    dataForThree["applyCmaps"] = [int(i) for i in applyCmaps]
 
     @app.route("/")
     def index():
