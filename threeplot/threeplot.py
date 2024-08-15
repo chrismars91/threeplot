@@ -172,6 +172,47 @@ def plot3D(data: list, title="", theme="dark_theme", applyCmaps=[]):
     app.run()
 
 
+def plot3DAnimationJS(data: list, jsFunctions: list, title="", theme="dark_theme", applyCmaps=[]):
+    if len(data) % 3 != 0:
+        print("data needs to be formatted like [x1,y1,z1,x2,y2,z2,...]")
+        return
+
+    if theme not in ["dark_theme", "light_theme"]:
+        print("theme needs to be `dark_theme` or `light_theme`")
+        return
+
+    for i in data:
+        try:
+            if len(i.shape) != 2:
+                print('data needs to have shape (2,N)')
+                return
+        except:
+            print('data needs to be np.arrays with shape (2,N)')
+            return
+
+    if not applyCmaps:
+        for i in range(len(data) // 3):
+            applyCmaps.append(False)
+    else:
+        if len(applyCmaps) >= len(data) // 3:
+            for i in range(0, len(data) // 3 - len(applyCmaps)):
+                applyCmaps.append(False)
+
+    app = Flask(__name__)
+
+    dataForThree = setUpForSurfaceThree(data)
+    dataForThree["title"] = title
+    dataForThree["theme"] = theme
+    dataForThree["applyCmaps"] = [int(i) for i in applyCmaps]
+    dataForThree["jsFunctions"] = jsFunctions
+
+    @app.route("/")
+    def index():
+        return render_template("index3DAnimation.html", dataForThree=dataForThree)
+
+    app.run()
+
+
 def plot3DVerts(data: list, title="", theme="dark_theme", ):
     app = Flask(__name__)
 
