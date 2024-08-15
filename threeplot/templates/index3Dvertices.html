@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>ThreePlot</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<style>
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: black;
+    color: #FFFFFF;
+    font-family: Monospace;
+}
+
+canvas {
+    width: 100%;
+    height: 100%;
+}
+.info{
+    position: absolute;
+    bottom: 1vh;
+    color: teal;
+    width: 100%;
+    font-family: Monospace;
+    text-align: center;
+}
+
+.threejs-hover-div{
+    position: absolute;
+    user-select: none;
+    text-align: center;
+} 
+
+.label-title{
+    font-size: x-large;
+    font-family: 'Apple Chancery', sans-serif;
+    color: #D3D3D3;
+
+} 
+
+.label-axis{
+    font-size: medium;
+    font-family: 'Apple Chancery', sans-serif;
+    color: #D3D3D3;
+} 
+
+.label-tick{
+    font-size: small;
+    color: #D3D3D3;
+} 
+
+</style>
+	</head>
+	<body>
+	<canvas id="canvas"></canvas>
+    <script src="{{url_for('static',filename='src/three.module.js')}}"></script>
+    <script src="{{url_for('static',filename='src/OrbitControls.js')}}"></script>
+    <script src="{{url_for('static',filename='src/Stats.js')}}"></script>
+    <script src="{{url_for('static',filename='src/CSS2DRenderer.js')}}"></script>
+    <script src="{{url_for('static',filename='src/colormaps255.js')}}"></script>
+	<script type="module">
+
+// BASIC API
+// ==================================================================================
+const data3 = {{ dataForThree|safe }};
+console.log(data3);
+
+// BASIC SETUP
+// ==================================================================================
+const camera = new PerspectiveCamera( 30, window.innerWidth / window.innerHeight, .01, 10000 );
+camera.position.set( 1, 1, 3 );
+const scene = new Scene();
+scene.background = new Color("rgb(24, 22, 21)");
+
+const renderer = new WebGLRenderer({antialias: true,canvas: document.getElementById("canvas")});
+renderer.setPixelRatio( window.devicePixelRatio );
+renderer.setSize( window.innerWidth, window.innerHeight );
+document.body.appendChild( renderer.domElement );
+const stats = new Stats();
+stats.showPanel( 0 );
+document.body.appendChild( stats.dom );
+const clock = new Clock();
+const light = new HemisphereLight( 0xffffff, 0x8d8d8d, 4 );
+scene.add( light );
+
+// VERTICES PLOT
+// ==================================================================================
+class VerticesGeometry extends BufferGeometry {
+    constructor( data, scale, mx, my, mz ){
+        super();
+        const verts = new Float32Array(data.length*3);
+        for(var i = 0;i<data.length;i+=1)
+        {
+            verts[i*3  ] = data[i][0]/scale - mx;
+            verts[i*3+1] = data[i][1]/scale - my;
+            verts[i*3+2] = data[i][2]/scale - mz;
+        }
+        this.setAttribute( 'position', new Float32BufferAttribute( verts, 3 ) );
+        this.computeVertexNormals();
+    }
+}
+
+
+
+// APPLY DATA 2 3D GRAPHICS
+// ==================================================================================
+
+const rgbToHex = (r, g, b) => '#' + [Math.floor(r*255), Math.floor(g*255), Math.floor(b*255)].map(x => {
+    const hex = x.toString(16)
+    return hex.length === 1 ? '0' + hex : hex
+}).join('');
+const intersectsObjs = [];
+for (var j = 0; j < data3.data.length; j += 1)
+{
+    const rgb = data3.data[j].rgb;
+    const geometry = new VerticesGeometry( 
+        data3.data[j].xyz,
+        data3.limits.max,
+        data3.limits.midX,
+        data3.limits.midY,
+        data3.limits.midZ);
+    const material = new MeshPhongMaterial( {
+        color:rgbToHex(rgb[0],rgb[1],rgb[2]), 
+        side:DoubleSide,transparent:true,opacity:.5});
+    const material2 = new MeshBasicMaterial( {
+        color: rgbToHex(rgb[0],rgb[1],rgb[2]),side:DoubleSide,wireframe:true});
+    const plane = new Mesh( geometry, material );
+    plane.uuid = "mesh"+j;
+    intersectsObjs.push(plane);
+    scene.add( plane );
+    const wirePlane = new Mesh( geometry, material2 );
+    scene.add( wirePlane );
+
+    // plane.renderOrder = j;
+}
+
+
+// GRID AND EXTRAS
+// ==================================================================================
+
+const boxframe = new LineSegments(
+    new EdgesGeometry( new BoxGeometry( 1.1, 1.1, 1.1 ) ),
+    new LineBasicMaterial( { color: 0xffffff, linewidth: 2 } )
+);
+scene.add( boxframe );
+
+
+// CREATE LABELS AND TICKS
+// ==================================================================================
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize( window.innerWidth, window.innerHeight );
+labelRenderer.domElement.style.position = 'absolute';
+labelRenderer.domElement.style.top = '0px';
+document.body.appendChild( labelRenderer.domElement );
+const controls = new OrbitControls( camera, labelRenderer.domElement );
+function createTickLabel( text, x, y, z, ox = 0, oy = 0) {
+    const div = document.createElement( 'div' );
+    div.className = 'label-tick';
+    div.textContent = text;
+    div.style.backgroundColor = 'transparent';
+    const label = new CSS2DObject( div );
+    label.position.set( x, y, z );
+    label.center.set( ox, oy );
+    scene.add( label );
+}
+
+function createTitleLabel( text, x, y, z, ox = 0, oy = 0) {
+    const div = document.createElement( 'div' );
+    div.className = 'label-title';
+    div.textContent = text;
+    div.style.backgroundColor = 'transparent';
+    const label = new CSS2DObject( div );
+    label.position.set( x, y, z );
+    label.center.set( ox, oy );
+    scene.add( label );
+}
+
+function createAxisLabel( text, x, y, z, ox = 0, oy = 0, rnz = 0) {
+    const wrapper = document.createElement('div'); 
+    const div = document.createElement( 'div' );
+    div.className = 'label-axis';
+    div.textContent = text;
+    div.style.backgroundColor = 'transparent';
+    div.style.transform = 'rotate('+rnz+'deg)';
+    wrapper.appendChild(div);
+    const label = new CSS2DObject( wrapper );
+    label.position.set( x, y, z );
+    label.center.set( ox, oy );
+    scene.add( label );
+}
+
+function f2ct( f ) {return Number.parseFloat(f).toExponential(2);}
+//x
+createTickLabel(f2ct(data3.limits.midX+data3.limits.max),.45,-.55,.6);
+createTickLabel(f2ct(data3.limits.midX-data3.limits.max),-.55,-.55,.6);
+//z
+createTickLabel(f2ct(data3.limits.midZ+data3.limits.max),.6,-.55,.5);
+createTickLabel(f2ct(data3.limits.midZ-data3.limits.max),.6,-.55,-.5);
+//y
+createTickLabel(f2ct(data3.limits.midY+data3.limits.max),-.625,.525,.625);
+createTickLabel(f2ct(data3.limits.midY-data3.limits.max),-.625,-.475,.625);
+
+createTitleLabel(data3.title,0,.56,0,.5,.5);
+createAxisLabel("x",0,-.55,.575,0,0);
+createAxisLabel("z",.575,-.55,  0,0,0);
+createAxisLabel("f(x,z)",-.55,0,.6,.5,.5,-90);
+
+class PlotLineSegments extends LineSegments
+{
+    constructor( N, mat )
+    {
+        const vertices = [];
+        for (let i = 0; i < N; i++)
+        {
+            vertices.push( 0, 0, 0);
+        }
+        const geometry = new BufferGeometry();
+        geometry.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
+        super( geometry, mat );
+        this.geo = geometry;
+        this.positionAttribute = this.geo.getAttribute( 'position' );
+        this.posArray = this.positionAttribute.array;
+    }
+    setPosIdx( idx, px, py, pz )
+    {
+        this.posArray[idx*3  ] = px;
+        this.posArray[idx*3+1] = py;
+        this.posArray[idx*3+2] = pz;
+    }
+    posUpdate() {this.positionAttribute.needsUpdate = true;}
+}
+
+const ticks = new PlotLineSegments(18, new LineBasicMaterial({color: 0xFFFFFF}));
+ticks.setPosIdx(0,0,-.55,.55);
+ticks.setPosIdx(1,0,-.55,.575);
+ticks.setPosIdx(2,.5,-.55,.55);
+ticks.setPosIdx(3,.5,-.55,.575);
+ticks.setPosIdx(4,-.5,-.55,.55);
+ticks.setPosIdx(5,-.5,-.55,.575);
+ticks.setPosIdx(6, .55, -.55,  0);
+ticks.setPosIdx(7, .575,-.55,  0);
+ticks.setPosIdx(8, .55, -.55, .5);
+ticks.setPosIdx(9, .575,-.55, .5);
+ticks.setPosIdx(10,.55, -.55,-.5);
+ticks.setPosIdx(11,.575,-.55,-.5);
+ticks.setPosIdx(12, -.55,0,.55);
+ticks.setPosIdx(13, -.55,0,.575);
+ticks.setPosIdx(14, -.55,.5,.55);
+ticks.setPosIdx(15, -.55,.5,.575);
+ticks.setPosIdx(16,-.55,-.5,.55);
+ticks.setPosIdx(17,-.55,-.5,.575);
+ticks.posUpdate();
+scene.add(ticks);
+
+
+
+// ANIMATE
+// ==================================================================================
+function animate(){
+    // const dt = clock.getDelta();
+    const time = clock.getElapsedTime();
+    stats.update();
+    requestAnimationFrame(animate);
+    renderer.render(scene,camera);
+    labelRenderer.render( scene, camera );
+};
+animate();
+
+
+
+// EVENT LISTENER(S)
+// ==================================================================================
+window.addEventListener( 'resize', onWindowResize );
+function onWindowResize() {
+	camera.aspect = window.innerWidth / window.innerHeight;
+	camera.updateProjectionMatrix();
+	renderer.setSize( window.innerWidth, window.innerHeight );
+	labelRenderer.setSize( window.innerWidth, window.innerHeight );
+}
+
+// RAY CASTER
+// ==================================================================================
+const hoverDiv = document.createElement("div");
+document.body.appendChild(hoverDiv);
+hoverDiv.className = "threejs-hover-div";
+
+const raycaster = new Raycaster();
+// raycaster.params.Points.threshold = 0.005;
+const pointer = new Vector2();
+let INTERSECTED = null;
+function onPointerMove( event ) {
+    pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+    pointer.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+    raycaster.setFromCamera( pointer, camera );
+    const intersects = raycaster.intersectObjects( intersectsObjs );
+    if ( intersects.length > 0 ) {
+        if ( INTERSECTED === intersects[0].faceIndex )
+        {
+            hoverDiv.style.left = 10+event.pageX + 'px';
+            hoverDiv.style.top = event.pageY + 'px';
+        }
+        else
+        {
+            INTERSECTED = intersects[0].faceIndex;
+            const intr = intersects[0];
+            hoverDiv.textContent = intr.object.uuid + " " + 
+                f2ct(intr.point.x) + " " +
+                f2ct(intr.point.y) + " " +
+                f2ct(intr.point.z);
+            hoverDiv.style.display = 'block';
+            hoverDiv.style.left = 10+event.pageX + 'px';
+            hoverDiv.style.top = event.pageY + 'px';            
+        }
+    }
+    else{
+        if ( INTERSECTED != null )
+        {
+            INTERSECTED = null;
+            hoverDiv.style.display = 'none';
+        }
+    }
+}
+
+
+function onPointerClick( event ) {
+    if (INTERSECTED != null)
+    {
+        console.log(INTERSECTED);
+    }
+}
+
+
+window.addEventListener( 'pointermove', onPointerMove );
+window.addEventListener( 'click', onPointerClick );
+
+
+// LIGHT THEME
+// ==================================================================================
+if (data3.theme === "light_theme")
+{
+    scene.background = new Color( 0xf0f0f0 );
+    hoverDiv.style.color = 'black';
+    const allTickDivs = document.getElementsByClassName('label-tick');
+    const titleDiv = document.getElementsByClassName('label-title')[0];
+    const allAxisDivs = document.getElementsByClassName('label-axis');
+    for(var i=0;i<=allTickDivs.length-1;i+=1){allTickDivs[i].style.color = 'black';}
+    for(var i=0;i<=allAxisDivs.length-1;i+=1){allAxisDivs[i].style.color = 'black';}
+    titleDiv.style.color = 'black';
+    boxframe.material.color = new Color( 0x000000 );
+    ticks.material.color = new Color( 0x000000 );
+}
+
+
+
+		</script>
+	</body>
+</html>
