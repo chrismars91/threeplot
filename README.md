@@ -1,6 +1,8 @@
 # threeplot
 uses Flask and threejs to plot simple functions/data in Python!
 <br>
+public example here: https://chrisboligprojects.pythonanywhere.com/python3Dex 
+<br>
 <br>
 <img width="743" alt="Screen Shot 2024-08-14 at 8 03 35 PM" src="https://github.com/user-attachments/assets/2a72edf9-cd96-403d-880d-122e79800fe9">
 <img width="1028" alt="Screen Shot 2024-08-15 at 1 29 38 AM" src="https://github.com/user-attachments/assets/621e8082-9079-4620-8a05-c286c4eb5ea5">
